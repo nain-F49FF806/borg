@@ -879,6 +879,7 @@ class Repository:
             pi.show()
         pi.finish()
         complete_xfer(intermediate=False)
+        self.io.clear_empty_dirs()
         quota_use_after = self.storage_quota_use
         logger.info('compaction freed about %s repository space.', format_file_size(quota_use_before - quota_use_after))
         logger.debug('compaction completed.')
@@ -1474,6 +1475,20 @@ class LoggedIO:
             safe_unlink(self.segment_filename(segment))
         except FileNotFoundError:
             pass
+
+    def clear_empty_dirs(self):
+        "Delete empty data dirs, i.e those with no segment files"
+        data_dir = os.path.join(self.path, 'data')
+        segment_dirs = [ f.path for f in os.scandir(data_dir) if f.is_dir() ]
+        for segment_dir in segment_dirs:
+            if len([f for f in os.scandir(segment_dir)]) == 0:
+                try:
+                    os.rmdir(segment_dir)
+                    sync_dir(data_dir)
+                except FileNotFoundError:
+                    logger.debug("While trying to clear empty segments dir, it seems it already vanished")
+                except OSError:
+                    logger.debug('While trying to clear empty segments dir, it seems it is not empty after all')
 
     def segment_exists(self, segment):
         filename = self.segment_filename(segment)
